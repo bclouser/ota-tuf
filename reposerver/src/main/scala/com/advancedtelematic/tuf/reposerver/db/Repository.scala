@@ -299,8 +299,12 @@ trait DelegationRepositorySupport extends DatabaseSupport {
 
 protected [db] class DelegationRepository()(implicit db: Database, ec: ExecutionContext) {
 
-  def find(repoId: RepoId, roleNames: DelegatedRoleName*): Future[DbDelegation] = db.run {
-    Schema.delegations.filter(_.repoId === repoId).filter(_.roleName.inSet(roleNames)).result.failIfNotSingle(DelegationNotFound)
+  def find(repoId: RepoId, roleNames: DelegatedRoleName*): Future[DbDelegation] = {
+    println("BEN SAYS: Querying db for roleNames: " + roleNames)
+    val dbResult = db.stream(Schema.delegations.filter(_.repoId === repoId).filter(_.roleName.inSet(roleNames)).result)
+    dbResult.foreach { s => println("---- (Raw DB Results) RoleName: " + s.roleName) }
+    
+    db.run(Schema.delegations.filter(_.repoId === repoId).filter(_.roleName.inSet(roleNames)).result.failIfNotSingle(DelegationNotFound))
   }
 
   def persist(repoId: RepoId, roleName: DelegatedRoleName, content: JsonSignedPayload): Future[Unit] = db.run {

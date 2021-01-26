@@ -246,8 +246,9 @@ class RepoResource(keyserverClient: KeyserverClient, namespaceValidation: Namesp
         findRole(repoId, roleType)
       } ~
       path("delegations" / DelegatedRoleUriPath) { delegatedRoleName =>
-        (put & entity(as[SignedPayload[TargetsRole]])) { payload =>
-          complete(delegations.create(repoId, delegatedRoleName, payload).map(_ => StatusCodes.NoContent))
+        (put & entity(as[SignedPayload[TargetsRole]])) { 
+          printf("BEN SAYS: PUT request received... running delegations.create()")
+          payload => complete(delegations.create(repoId, delegatedRoleName, payload).map(_ => StatusCodes.NoContent))
         } ~
         get {
           complete(delegations.find(repoId, delegatedRoleName))

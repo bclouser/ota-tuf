@@ -26,12 +26,14 @@ class SignedRoleGeneration(keyserverClient: KeyserverClient,
   private val log = LoggerFactory.getLogger(this.getClass)
 
   def regenerateAllSignedRoles(repoId: RepoId): Future[JsonSignedPayload] = async {
+    println("BEN SAYS: inside regenerateAllSignedRoles()")
     await(fetchRootRole(repoId))
 
     val expireAt = defaultExpire
 
     val targetVersion = await(nextVersion[TargetsRole](repoId))
     val targetDelegations = await(extractDelegationsFromTargetsRole(repoId))
+    println("BEN SAYS: targetDelegations from targets role: " + targetDelegations)
     val targetRole = await(genTargetsFromExistingItems(repoId, targetDelegations, expireAt, targetVersion))
     val signedTarget = await(signRole(repoId, targetRole))
 
@@ -43,7 +45,9 @@ class SignedRoleGeneration(keyserverClient: KeyserverClient,
   }
 
   def regenerateSnapshots(repoId: RepoId): Future[(SignedRole[SnapshotRole], SignedRole[TimestampRole])] = async {
+    println("BEN SAYS: Inside regenerateSnapshots()")
     val existingTargets = await(signedRoleProvider.find[TargetsRole](repoId))
+    println("BEN SAYS: GOt existingTargets")
     val (snapshots, timestamps) = await(freshSignedDependent(repoId, existingTargets, defaultExpire))
     await(signedRoleProvider.persistAll(repoId, List(snapshots, timestamps)))
     (snapshots, timestamps)
@@ -55,7 +59,9 @@ class SignedRoleGeneration(keyserverClient: KeyserverClient,
     val signedRoot = await(fetchRootRole(repoId))
 
     val snapshotVersion = await(nextVersion[SnapshotRole](repoId))
+    println("BEN SAYS: snapshotVersion: " + snapshotVersion)
     val delegations = await(targetsProvider.findSignedTargetRoleDelegations(repoId, targetRole))
+    println("BEN SAYS: delegations to be dropped into the snapshot: " + delegations)
     val snapshotRole = genSnapshotRole(signedRoot, targetRole, delegations, expireAt, snapshotVersion)
     val signedSnapshot = await(signRole(repoId, snapshotRole))
 

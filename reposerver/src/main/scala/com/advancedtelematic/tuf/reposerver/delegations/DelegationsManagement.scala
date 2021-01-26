@@ -25,16 +25,23 @@ class SignedRoleDelegationsFind()(implicit val db: Database, val ec: ExecutionCo
   import io.circe.syntax._
 
   def findSignedTargetRoleDelegations(repoId: RepoId, targetRole: SignedRole[TargetsRole]): Future[Map[MetaPath, MetaItem]] = {
+    println("BEN SAYS: Inside SignedRoleDelegationsFind.findSignedTargetRoleDelegations()")
     val delegatedRoleNames = targetRole.role.delegations.map(_.roles.map(_.name)).getOrElse(List.empty)
+    println("BEN SAYS: delegatedRoleNames found from the targets role: " + delegatedRoleNames)
     val delegationsF =
       delegatedRoleNames
-        .map { name => delegationsRepo.find(repoId, name).map((name, _)) }
+        .map { name => 
+          val foundDelegation = delegationsRepo.find(repoId, name).map((name, _)) 
+          println("BEN SAYS: (.map) Found delegation ("+name.value+") in database")
+          foundDelegation}
         .sequence
-        .recover { case Errors.DelegationNotFound => List.empty }
-
+        .recover { case Errors.DelegationNotFound => 
+          println("BEN SAYS: (.recover) Failed to find delegation in delegationsRepo db")
+        List.empty }
     for {
       delegations <- delegationsF
       delegationsAsMetaItems <- delegations.map { case (name, d) =>
+        println("BEN SAYS: trying to place name.value= " + name.value)
         Future.fromTry { (name.value + ".json").refineTry[ValidMetaPath].product(asMetaItem(d.content)) }
       }.sequence
     } yield delegationsAsMetaItems.toMap
@@ -55,13 +62,16 @@ class DelegationsManagement()(implicit val db: Database, val ec: ExecutionContex
                                                   extends DelegationRepositorySupport with SignedRoleRepositorySupport {
   def create(repoId: RepoId, roleName: DelegatedRoleName, delegationMetadata: SignedPayload[TargetsRole])
             (implicit signedRoleGeneration: SignedRoleGeneration): Future[Unit] = async {
+              println("BEN SAYS: Inside DelegationsManagement.create()")
     val targetsRole = await(signedRoleRepository.find[TargetsRole](repoId)).role
     val delegation = findDelegationMetadataByName(targetsRole, roleName)
 
     validateDelegationMetadataSignatures(targetsRole, delegation, delegationMetadata) match {
       case Valid(_) =>
+        println("BEN SAYS: Delegation signatures are valid. roleName= " + roleName )
         await(delegationsRepo.persist(repoId, roleName, delegationMetadata.asJsonSignedPayload))
-        await(signedRoleGeneration.regenerateSnapshots(repoId))
+        val snapshots, timestamps = await(signedRoleGeneration.regenerateSnapshots(repoId))
+        println("BEN SAYS: Snapshots returned from regenerateSnapshots(). Snapshotsjson: " + snapshots)
       case Invalid(err) =>
         throw Errors.PayloadSignatureInvalid(err)
     }
